@@ -1,0 +1,46 @@
+name: Autogenerate README Badges
+
+on: create
+
+jobs:
+  generate:
+    name: Insert repository-dependant information
+    runs-on: ubuntu-latest
+    steps:
+    - name: Retrieve repository
+      uses: actions/checkout@v2
+      with:
+        ref: 'master'
+    - name: Check if README.md exists
+      run: |
+        if [[ -f "README.md" ]]; then
+          echo "::set-env name=REAMDE_FOUND::true"
+        fi
+    - name: Replace placeholders
+      run: |
+        sed -e "s/\${GITHUB_REPOSITORY}/$(sed -e 's/[&\\/]/\\&/g; s/$/\\/' -e '$s/\\$//' <<<"$GITHUB_REPOSITORY")/g" \
+          -e 's/<!--PLACEHOLDER-->.*<!--\/PLACEHOLDER-->//g' \
+          -e 's/<!--PLACEHOLDER//g' \
+          -e 's/\/PLACEHOLDER-->//g' \
+          README.md > tmp
+        cat tmp > README.md
+        rm -f tmp
+      if: env.REAMDE_FOUND
+    - name: Update repo's state
+      run: |		
+         echo -e "$AUTOGRADING_LINK\n$(cat $GITHUB_WORKSPACE/README.md)" > $GITHUB_WORKSPACE/README.md		
+         git config --local user.email "action@github.com"		
+         git config --local user.name "GitHub Action"		
+         git commit -m "Autogenerate README Badges" -a
+      if: env.REAMDE_FOUND
+    - name: Push changes
+      run: |
+        n=0
+        until [ $n -ge 5 ]
+        do
+          git pull origin master
+          git push https://${GITHUB_ACTOR}:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git master && break
+          n=$(($n+1))
+          sleep 1m
+        done
+      if: env.REAMDE_FOUND
